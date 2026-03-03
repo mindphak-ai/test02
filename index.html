@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบบันทึกรูปภาพลูกค้า</title>
+
+<style>
+body{
+    font-family: "Segoe UI", sans-serif;
+    margin:0;
+    background:#f4f9ff;
+}
+header{
+    background:linear-gradient(90deg,#0d6efd,#ffc107);
+    color:white;
+    padding:15px;
+    text-align:center;
+    font-size:22px;
+    font-weight:bold;
+}
+.container{
+    max-width:900px;
+    margin:auto;
+    padding:20px;
+}
+.card{
+    background:white;
+    padding:20px;
+    margin-bottom:15px;
+    border-radius:10px;
+    box-shadow:0 4px 8px rgba(0,0,0,0.1);
+}
+input,button{
+    padding:10px;
+    margin:5px 0;
+    border-radius:6px;
+    border:1px solid #ccc;
+    width:100%;
+}
+button{
+    background:#0d6efd;
+    color:white;
+    border:none;
+    cursor:pointer;
+}
+button:hover{
+    opacity:0.9;
+}
+.btn-yellow{
+    background:#ffc107;
+    color:black;
+}
+.customer-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px;
+    border-bottom:1px solid #ddd;
+}
+.image-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+    gap:10px;
+}
+.image-grid img{
+    width:100%;
+    border-radius:8px;
+    cursor:pointer;
+}
+.hidden{display:none;}
+.search-box{margin-bottom:15px;}
+</style>
+</head>
+
+<body>
+
+<header>ระบบบันทึกเอกสารรูปภาพลูกค้า</header>
+
+<div class="container">
+
+<!-- หน้า 1 รายชื่อ -->
+<div id="pageList">
+<div class="card">
+<h3>รายชื่อลูกค้า</h3>
+<input type="text" id="search" class="search-box" placeholder="ค้นหารหัสลูกค้า..." onkeyup="renderList()">
+<div id="customerList"></div>
+<button onclick="showAddPage()">+ เพิ่มข้อมูลใหม่</button>
+</div>
+</div>
+
+<!-- หน้า 2 เพิ่มข้อมูล -->
+<div id="pageAdd" class="hidden">
+<div class="card">
+<h3>บันทึกข้อมูลลูกค้า</h3>
+<input type="text" id="customerId" placeholder="รหัสลูกค้า">
+<input type="text" id="customerName" placeholder="ชื่อลูกค้า">
+<input type="file" id="images" multiple accept="image/*">
+<button onclick="saveCustomer()">บันทึกข้อมูล</button>
+<button class="btn-yellow" onclick="showListPage()">กลับ</button>
+</div>
+</div>
+
+<!-- หน้า รายละเอียด -->
+<div id="pageDetail" class="hidden">
+<div class="card">
+<h3>รายละเอียดลูกค้า</h3>
+<div id="detailInfo"></div>
+<div class="image-grid" id="detailImages"></div>
+<input type="file" id="addMoreImages" multiple accept="image/*">
+<button onclick="addImages()">เพิ่มรูปภาพ</button>
+<button class="btn-yellow" onclick="showListPage()">กลับ</button>
+</div>
+</div>
+
+</div>
+
+<script>
+function openImage(src){
+    let newTab = window.open();
+    newTab.document.body.style.margin = "0";
+    newTab.document.body.innerHTML = `
+        <div style="background:black;text-align:center;">
+            <img src="${src}" style="max-width:100%;height:auto;">
+        </div>
+    `;
+}
+let customers = JSON.parse(localStorage.getItem("customers")) || [];
+let currentCustomer = null;
+
+function saveLocal(){
+    localStorage.setItem("customers", JSON.stringify(customers));
+}
+
+function showAddPage(){
+    document.getElementById("pageList").classList.add("hidden");
+    document.getElementById("pageAdd").classList.remove("hidden");
+}
+
+function showListPage(){
+    document.getElementById("pageAdd").classList.add("hidden");
+    document.getElementById("pageDetail").classList.add("hidden");
+    document.getElementById("pageList").classList.remove("hidden");
+    renderList();
+}
+
+function saveCustomer(){
+    let id = document.getElementById("customerId").value.trim();
+    let name = document.getElementById("customerName").value.trim();
+    let files = document.getElementById("images").files;
+
+    if(!id || !name || files.length === 0){
+        alert("กรุณากรอกข้อมูลให้ครบ");
+        return;
+    }
+
+    let readerPromises = [];
+    for(let file of files){
+        readerPromises.push(new Promise(resolve=>{
+            let reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        }));
+    }
+
+    Promise.all(readerPromises).then(images=>{
+        let existing = customers.find(c=>c.id===id);
+        if(existing){
+            existing.images.push(...images);
+        }else{
+            customers.push({
+                id:id,
+                name:name,
+                date:new Date().toLocaleString(),
+                images:images
+            });
+        }
+
+        customers.sort((a,b)=>a.id.localeCompare(b.id));
+        saveLocal();
+        showListPage();
+    });
+}
+
+function renderList(){
+    let keyword = document.getElementById("search").value.trim();
+    let list = document.getElementById("customerList");
+    list.innerHTML="";
+
+    customers
+    .filter(c=>c.id.includes(keyword))
+    .forEach(c=>{
+        list.innerHTML += `
+        <div class="customer-item">
+            <div>${c.id} - ${c.name}</div>
+            <button onclick="showDetail('${c.id}')">รายละเอียด</button>
+        </div>`;
+    });
+}
+
+function showDetail(id){
+    currentCustomer = customers.find(c=>c.id===id);
+    document.getElementById("pageList").classList.add("hidden");
+    document.getElementById("pageDetail").classList.remove("hidden");
+
+    document.getElementById("detailInfo").innerHTML=
+    `รหัสลูกค้า: ${currentCustomer.id}<br>
+     ชื่อลูกค้า: ${currentCustomer.name}<br>
+     วันที่บันทึก: ${currentCustomer.date}<br><br>`;
+
+    let imgBox = document.getElementById("detailImages");
+    imgBox.innerHTML="";
+    currentCustomer.images.forEach((img,index)=>{
+        imgBox.innerHTML+=`
+        <div>
+           <img src="${img}" onclick="openImage('${img}')">
+            <button onclick="deleteImage(${index})">ลบ</button>
+        </div>`;
+    });
+}
+
+function deleteImage(index){
+    if(confirm("ยืนยันการลบรูปภาพ?")){
+        currentCustomer.images.splice(index,1);
+        saveLocal();
+        showDetail(currentCustomer.id);
+    }
+}
+
+function addImages(){
+    let files = document.getElementById("addMoreImages").files;
+    if(files.length===0) return;
+
+    let readerPromises=[];
+    for(let file of files){
+        readerPromises.push(new Promise(resolve=>{
+            let reader=new FileReader();
+            reader.onload=e=>resolve(e.target.result);
+            reader.readAsDataURL(file);
+        }));
+    }
+
+    Promise.all(readerPromises).then(images=>{
+        currentCustomer.images.push(...images);
+        saveLocal();
+        showDetail(currentCustomer.id);
+    });
+}
+
+renderList();
+</script>
+
+</body>
+</html>
